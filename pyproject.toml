@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "quant-trading-research"
+version = "0.1.0"
+description = "Educational quantitative trading research platform."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "matplotlib>=3.9",
+  "numpy>=2.0",
+  "pandas>=2.2",
+  "scipy>=1.14",
+  "yfinance>=0.2.54",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/quant_research"]
