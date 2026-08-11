@@ -7,5 +7,6 @@ __all__ = [
     "plotting",
     "portfolio",
     "signals",
+    "statistics",
     "validation",
 ]
