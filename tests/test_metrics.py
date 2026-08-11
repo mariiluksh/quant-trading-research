@@ -14,6 +14,8 @@ from quant_research.metrics import (
     drawdown_series,
     hit_rate,
     maximum_drawdown,
+    rolling_correlation,
+    rolling_cumulative_return,
     rolling_sharpe_ratio,
     rolling_volatility,
     running_equity_curve,
@@ -120,6 +122,25 @@ def test_rolling_volatility_and_sharpe_ratio() -> None:
     assert np.isnan(rolling_vol.iloc[1])
     assert rolling_vol.iloc[2] == pytest.approx(expected_vol)
     assert rolling_sharpe.iloc[2] == pytest.approx(expected_sharpe)
+
+
+def test_rolling_cumulative_return_and_correlation() -> None:
+    """Rolling cumulative return and correlation should match simple examples."""
+
+    left = pd.Series([0.10, 0.00, -0.10, 0.20])
+    right = pd.Series([0.05, 0.00, -0.05, 0.10])
+
+    cumulative = rolling_cumulative_return(left, window=2)
+    correlation = rolling_correlation(left, right, window=3)
+
+    assert np.isnan(cumulative.iloc[0])
+    assert cumulative.iloc[1] == pytest.approx((1.10 * 1.00) - 1.0)
+    assert cumulative.iloc[2] == pytest.approx((1.00 * 0.90) - 1.0)
+
+    assert np.isnan(correlation.iloc[0])
+    assert np.isnan(correlation.iloc[1])
+    assert correlation.iloc[2] == pytest.approx(1.0)
+    assert correlation.iloc[3] == pytest.approx(1.0)
 
 
 def test_hit_rate_ignores_zeros_and_nans() -> None:

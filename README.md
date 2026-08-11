@@ -137,6 +137,18 @@ This project deliberately starts with simple basis-points-per-unit-turnover assu
 does not yet include more sophisticated market-impact models. The goal at this stage is to
 measure basic cost sensitivity transparently before adding more complex execution modeling.
 
+## Rolling Diagnostics and Volatility Regimes
+
+The repository also includes descriptive rolling diagnostics such as rolling volatility,
+rolling Sharpe, rolling correlations, rolling cumulative returns, and drawdowns. These are
+useful for understanding when a strategy appears to be working, when it is unstable, and
+how its behavior changes across the sample.
+
+Volatility-regime labels in this project are descriptive only. They are created by taking
+historical realized volatility and bucketing it into low, medium, and high regimes using
+quantiles. This is not a predictive regime model and should not be interpreted as a claim
+that future volatility states can be known ahead of time.
+
 ## Near-Term Plan
 
 1. Extend strategy coverage beyond the single baseline momentum rule.

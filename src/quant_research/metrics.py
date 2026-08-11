@@ -254,6 +254,47 @@ def rolling_sharpe_ratio(
     return ratio.where(~np.isclose(rolling_std, 0.0), np.nan)
 
 
+def rolling_cumulative_return(
+    returns: pd.Series,
+    *,
+    window: int,
+) -> pd.Series:
+    """Compute rolling cumulative simple return over a fixed window.
+
+    Formula:
+    `(Π_{i=t-window+1}^t (1 + r_i)) - 1`
+    """
+
+    clean = _clean_return_series(returns)
+    _validate_window(window)
+    return (1.0 + clean).rolling(window=window).apply(np.prod, raw=True) - 1.0
+
+
+def rolling_correlation(
+    left: pd.Series,
+    right: pd.Series,
+    *,
+    window: int,
+) -> pd.Series:
+    """Compute rolling correlation between two aligned return series."""
+
+    _validate_window(window)
+    if not isinstance(left, pd.Series) or not isinstance(right, pd.Series):
+        raise TypeError("rolling_correlation expects two pandas Series inputs.")
+
+    paired = pd.concat(
+        [
+            pd.to_numeric(left, errors="coerce").rename("left"),
+            pd.to_numeric(right, errors="coerce").rename("right"),
+        ],
+        axis=1,
+        join="inner",
+    ).dropna()
+    if paired.empty:
+        return pd.Series(dtype=float)
+    return paired["left"].rolling(window=window).corr(paired["right"])
+
+
 def hit_rate(returns: pd.Series) -> float:
     """Compute the fraction of non-zero observations that are positive."""
 

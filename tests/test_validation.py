@@ -6,9 +6,11 @@ import pandas as pd
 import pytest
 
 from quant_research.validation import (
+    classify_volatility_regimes,
     chronological_train_test_split,
     chronological_train_validation_test_split,
     evaluate_parameter_grid,
+    performance_by_regime,
     stability_analysis,
     transaction_cost_sensitivity,
     walk_forward_splits,
@@ -135,3 +137,35 @@ def test_transaction_cost_sensitivity_rejects_negative_costs() -> None:
 
     with pytest.raises(ValueError, match="must be non-negative"):
         transaction_cost_sensitivity([-1.0], lambda _: {"sharpe": 1.0})
+
+
+def test_classify_volatility_regimes_labels_quantile_buckets() -> None:
+    """Volatility regimes should map into low, medium, and high buckets."""
+
+    volatility = pd.Series(
+        [0.10, 0.20, 0.30, 0.40, 0.50],
+        index=pd.date_range("2024-01-01", periods=5, freq="D"),
+    )
+
+    regimes = classify_volatility_regimes(volatility, low_quantile=0.33, high_quantile=0.67)
+
+    assert regimes.iloc[0] == "low"
+    assert regimes.iloc[1] == "low"
+    assert regimes.iloc[2] == "medium"
+    assert regimes.iloc[3] == "high"
+    assert regimes.iloc[4] == "high"
+
+
+def test_performance_by_regime_summarizes_each_bucket() -> None:
+    """Performance summary should report metrics separately by descriptive regime."""
+
+    index = pd.date_range("2024-01-01", periods=6, freq="D")
+    returns = pd.Series([0.01, 0.02, -0.01, 0.03, -0.02, 0.01], index=index)
+    regimes = pd.Series(["low", "low", "medium", "medium", "high", "high"], index=index)
+
+    summary = performance_by_regime(returns, regimes, periods_per_year=252)
+
+    assert summary["regime"].tolist() == ["low", "medium", "high"]
+    assert summary["observations"].tolist() == [2, 2, 2]
+    low_row = summary.loc[summary["regime"] == "low"].iloc[0]
+    assert low_row["hit_rate"] == pytest.approx(1.0)

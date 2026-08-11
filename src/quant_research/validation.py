@@ -9,6 +9,8 @@ from typing import Any, Callable, Sequence
 import numpy as np
 import pandas as pd
 
+from quant_research.metrics import annualized_return, hit_rate, maximum_drawdown, sharpe_ratio
+
 
 @dataclass(frozen=True)
 class TrainTestSplit:
@@ -234,6 +236,99 @@ def transaction_cost_sensitivity(
     return pd.DataFrame(records)
 
 
+def classify_volatility_regimes(
+    volatility: pd.Series,
+    *,
+    low_quantile: float = 1.0 / 3.0,
+    high_quantile: float = 2.0 / 3.0,
+) -> pd.Series:
+    """Classify historical volatility observations into low, medium, and high.
+
+    This is descriptive only. It labels each observation using quantiles of the
+    observed historical volatility series and does not imply a predictive regime
+    model.
+    """
+
+    series = _validate_time_series(volatility, "volatility")
+    if not isinstance(series, pd.Series):
+        raise TypeError("volatility must be a pandas Series.")
+    _validate_quantile(low_quantile, "low_quantile")
+    _validate_quantile(high_quantile, "high_quantile")
+    if low_quantile >= high_quantile:
+        raise ValueError("low_quantile must be strictly less than high_quantile.")
+
+    clean = pd.to_numeric(series, errors="coerce")
+    low_cutoff = clean.quantile(low_quantile)
+    high_cutoff = clean.quantile(high_quantile)
+
+    regimes = pd.Series(pd.NA, index=clean.index, dtype="object")
+    regimes.loc[clean <= low_cutoff] = "low"
+    regimes.loc[(clean > low_cutoff) & (clean < high_cutoff)] = "medium"
+    regimes.loc[clean >= high_cutoff] = "high"
+    regimes.loc[clean.isna()] = pd.NA
+    return regimes.rename("volatility_regime")
+
+
+def performance_by_regime(
+    returns: pd.Series,
+    regimes: pd.Series,
+    *,
+    periods_per_year: int = 252,
+    risk_free_rate: float = 0.0,
+) -> pd.DataFrame:
+    """Summarize realized strategy performance within descriptive volatility regimes."""
+
+    if not isinstance(returns, pd.Series) or not isinstance(regimes, pd.Series):
+        raise TypeError("returns and regimes must both be pandas Series.")
+
+    paired = pd.concat(
+        [
+            pd.to_numeric(returns, errors="coerce").rename("returns"),
+            regimes.rename("regime"),
+        ],
+        axis=1,
+        join="inner",
+    ).dropna()
+    if paired.empty:
+        raise ValueError("returns and regimes do not share any non-missing observations.")
+
+    records: list[dict[str, Any]] = []
+    for regime_name in ["low", "medium", "high"]:
+        regime_returns = paired.loc[paired["regime"] == regime_name, "returns"]
+        if regime_returns.empty:
+            records.append(
+                {
+                    "regime": regime_name,
+                    "observations": 0,
+                    "annual_return": np.nan,
+                    "sharpe_ratio": np.nan,
+                    "max_drawdown": np.nan,
+                    "hit_rate": np.nan,
+                }
+            )
+            continue
+
+        records.append(
+            {
+                "regime": regime_name,
+                "observations": int(regime_returns.size),
+                "annual_return": annualized_return(
+                    regime_returns,
+                    periods_per_year=periods_per_year,
+                ),
+                "sharpe_ratio": sharpe_ratio(
+                    regime_returns,
+                    periods_per_year=periods_per_year,
+                    risk_free_rate=risk_free_rate,
+                ),
+                "max_drawdown": maximum_drawdown(regime_returns),
+                "hit_rate": hit_rate(regime_returns),
+            }
+        )
+
+    return pd.DataFrame(records)
+
+
 def _validate_time_series(
     data: pd.Series | pd.DataFrame,
     name: str,
@@ -272,3 +367,10 @@ def _validate_positive_int(value: int, name: str) -> None:
 
     if value <= 0:
         raise ValueError(f"{name} must be a positive integer.")
+
+
+def _validate_quantile(value: float, name: str) -> None:
+    """Reject invalid quantile inputs."""
+
+    if value <= 0.0 or value >= 1.0:
+        raise ValueError(f"{name} must lie strictly between 0 and 1.")
